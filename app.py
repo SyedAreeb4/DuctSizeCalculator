@@ -10,82 +10,41 @@ st.set_page_config(page_title="Duct Size Calculator", page_icon="📏", layout="
 # Your available duct sizes (mm)
 DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 60]
 
-# ----------------------------
-# Styling (bluish theme)
-# ----------------------------
+
 # st.markdown("""
 # <style>
-#   .stApp { background: linear-gradient(180deg, #eef6ff 0%, #f7fbff 100%); }
-#   h1, h2, h3, h4 { color:#0f3d75; }
-#   .small-note { color:#2a4f7c; font-size:0.9rem; }
-#   .stButton>button {
-#       background:#2f80ed; color:white; border-radius:12px; padding:0.6rem 1rem; border:none;
-#       box-shadow: 0 6px 16px rgba(47,128,237,0.25);
+#   /* 🔒 Lock Streamlit in light theme */
+#   :root {
+#       background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+#       color: #111111;
+#       font-family: 'Segoe UI', sans-serif;
 #   }
-#   .stDownloadButton>button {
-#       background:#2f80ed; color:white; border-radius:10px; padding:0.5rem 0.9rem; border:none;
+
+#   body, .stApp {
+#       color: var(--text-color) !important;
+#       background: var(--background-color) !important;
 #   }
+
+#   /* Results section text */
+#   div[data-testid="stMarkdownContainer"], 
+#   div[data-testid="stMetricValue"], 
+#   div[data-testid="stMetricDelta"] {
+#       color: #111111 !important;
+#       font-size: 1rem !important;
+#       font-weight: 600 !important;
+#   }
+
+#   /* Results box */
 #   .box {
-#       background:white; border:1px solid #e4eefc; border-radius:16px; padding:1rem 1.2rem;
-#       box-shadow: 0 8px 24px rgba(33, 150, 243, 0.08);
+#       background: #f5f5f5;  /* light gray background for contrast */
+#       border: 1px solid #cccccc;
+#       border-radius: 16px;
+#       padding: 1rem 1.2rem;
+#       color: #111111 !important;
+#       font-weight: 600 !important;
 #   }
 # </style>
 # """, unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-  /* Background */
-  .stApp { 
-      background: #ffffff; /* solid white (better readability on mobile) */
-      color: #0f3d75; /* default text color */
-  }
-
-  /* Headings */
-  h1, h2, h3, h4 { 
-      color: #0d2c54; /* darker blue for strong contrast */
-  }
-
-  /* Paragraphs / normal text */
-  .css-16idsys p, .stMarkdown, .stText { 
-      color: #1a1a1a; /* dark gray text, easy to read */
-  }
-
-  /* Notes / small text */
-  .small-note { 
-      color:#2a4f7c; 
-      font-size:0.9rem; 
-  }
-
-  /* Buttons */
-  .stButton>button {
-      background:#2f80ed; 
-      color:white; 
-      border-radius:12px; 
-      padding:0.6rem 1rem; 
-      border:none;
-      box-shadow: 0 6px 16px rgba(47,128,237,0.25);
-  }
-
-  /* Download button */
-  .stDownloadButton>button {
-      background:#2f80ed; 
-      color:white; 
-      border-radius:10px; 
-      padding:0.5rem 0.9rem; 
-      border:none;
-  }
-
-  /* Card-like boxes */
-  .box {
-      background:white; 
-      border:1px solid #e4eefc; 
-      border-radius:16px; 
-      padding:1rem 1.2rem;
-      box-shadow: 0 8px 24px rgba(33, 150, 243, 0.08);
-      color:#1a1a1a; /* ensure readable text inside box */
-  }
-</style>
-""", unsafe_allow_html=True)
 
 
 
@@ -295,7 +254,7 @@ else:
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown(
-    "<div class='small-note'>Note: If your catalog sizes are nominal **ID** rather than **OD**, switch the "
+    "<div class='small-note'>Note: Advanced Options If your catalog sizes are nominal Inner Diameter rather than Outer Diameter, switch the "
     "radio to `Inner Diameter (ID)`. If OD is used, adjust wall thickness to match your duct material/spec.</div>",
     unsafe_allow_html=True
 )
