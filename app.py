@@ -13,24 +13,81 @@ DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 60]
 # ----------------------------
 # Styling (bluish theme)
 # ----------------------------
+# st.markdown("""
+# <style>
+#   .stApp { background: linear-gradient(180deg, #eef6ff 0%, #f7fbff 100%); }
+#   h1, h2, h3, h4 { color:#0f3d75; }
+#   .small-note { color:#2a4f7c; font-size:0.9rem; }
+#   .stButton>button {
+#       background:#2f80ed; color:white; border-radius:12px; padding:0.6rem 1rem; border:none;
+#       box-shadow: 0 6px 16px rgba(47,128,237,0.25);
+#   }
+#   .stDownloadButton>button {
+#       background:#2f80ed; color:white; border-radius:10px; padding:0.5rem 0.9rem; border:none;
+#   }
+#   .box {
+#       background:white; border:1px solid #e4eefc; border-radius:16px; padding:1rem 1.2rem;
+#       box-shadow: 0 8px 24px rgba(33, 150, 243, 0.08);
+#   }
+# </style>
+# """, unsafe_allow_html=True)
+
 st.markdown("""
 <style>
-  .stApp { background: linear-gradient(180deg, #eef6ff 0%, #f7fbff 100%); }
-  h1, h2, h3, h4 { color:#0f3d75; }
-  .small-note { color:#2a4f7c; font-size:0.9rem; }
+  /* Background */
+  .stApp { 
+      background: #ffffff; /* solid white (better readability on mobile) */
+      color: #0f3d75; /* default text color */
+  }
+
+  /* Headings */
+  h1, h2, h3, h4 { 
+      color: #0d2c54; /* darker blue for strong contrast */
+  }
+
+  /* Paragraphs / normal text */
+  .css-16idsys p, .stMarkdown, .stText { 
+      color: #1a1a1a; /* dark gray text, easy to read */
+  }
+
+  /* Notes / small text */
+  .small-note { 
+      color:#2a4f7c; 
+      font-size:0.9rem; 
+  }
+
+  /* Buttons */
   .stButton>button {
-      background:#2f80ed; color:white; border-radius:12px; padding:0.6rem 1rem; border:none;
+      background:#2f80ed; 
+      color:white; 
+      border-radius:12px; 
+      padding:0.6rem 1rem; 
+      border:none;
       box-shadow: 0 6px 16px rgba(47,128,237,0.25);
   }
+
+  /* Download button */
   .stDownloadButton>button {
-      background:#2f80ed; color:white; border-radius:10px; padding:0.5rem 0.9rem; border:none;
+      background:#2f80ed; 
+      color:white; 
+      border-radius:10px; 
+      padding:0.5rem 0.9rem; 
+      border:none;
   }
+
+  /* Card-like boxes */
   .box {
-      background:white; border:1px solid #e4eefc; border-radius:16px; padding:1rem 1.2rem;
+      background:white; 
+      border:1px solid #e4eefc; 
+      border-radius:16px; 
+      padding:1rem 1.2rem;
       box-shadow: 0 8px 24px rgba(33, 150, 243, 0.08);
+      color:#1a1a1a; /* ensure readable text inside box */
   }
 </style>
 """, unsafe_allow_html=True)
+
+
 
 # ----------------------------
 # Helpers
@@ -73,31 +130,49 @@ with st.container():
 
     # Initialize editable table
     if "df" not in st.session_state:
-        st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 20.0, "Qty": 1}])
+        st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 1.0, "Qty": 1}])
 
-    edited = st.data_editor(
-        st.session_state.df,
-        key="cable_table",
-        num_rows="dynamic",
-        use_container_width=True,
-        column_config={
-            "Cable OD (mm)": st.column_config.NumberColumn("Cable OD (mm)", min_value=0.1, step=0.1, help="Outside diameter of the cable"),
-            # "Qty": st.column_config.ProgressColumn(
-            # "Qty",
-            # min_value=1,
-            # max_value=50,
-            # format="%d",
-            # help="Number of this cable in the same duct")    
-            "Qty": st.column_config.NumberColumn(
-                "Qty",
+    updated_rows = []
+    for i, row in st.session_state.df.iterrows():
+        col1, col2, col3 = st.columns([2, 2, 1])
+
+        with col1:
+            od = st.text_input(
+                f"Cable {i+1} OD (mm)",
+                value=str(row["Cable OD (mm)"]),
+                key=f"od_{i}"
+            )
+            try:
+                od_val = float(od)
+            except:
+                od_val = 0.0
+
+        with col2:
+            qty = st.slider(
+                f"Cable {i+1} Qty",
                 min_value=1,
-                max_value=20,  # optional limit
-                step=1,
-                format="%d")
+                max_value=20,
+                value=int(row["Qty"]),
+                key=f"qty_{i}"
+            )
 
-        }
-    )
-    st.session_state.df = edited
+        with col3:
+            if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
+                continue  # skip adding this row (deletes it)
+
+        updated_rows.append({"Cable OD (mm)": od_val, "Qty": qty})
+
+    # Update dataframe
+    st.session_state.df = pd.DataFrame(updated_rows)
+
+    # Add new row button
+    if st.button("➕ Add Row", key="add_row_btn"):
+        df = st.session_state.df.copy()
+        df.loc[len(df)] = {"Cable OD (mm)": 0.0, "Qty": 1}
+        st.session_state.df = df
+        st.rerun()
+
+
 
     with st.expander("Advanced options"):
         list_kind = st.radio(
@@ -116,7 +191,7 @@ with st.container():
     cols = st.columns([1,1,1])
     with cols[0]:
         if st.button("🧹 Reset table"):
-            st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 20.0, "Qty": 1}])
+            st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 0, "Qty": 1}])
 
     st.markdown("</div>", unsafe_allow_html=True)
 
