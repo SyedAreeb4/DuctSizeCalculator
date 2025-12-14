@@ -7,165 +7,149 @@ import math
 # ----------------------------
 st.set_page_config(page_title="Duct Size Calculator", page_icon="📏", layout="centered")
 
-# Your available duct sizes (mm)
-DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 60]
-
-
-# st.markdown("""
-# <style>
-#   /* 🔒 Lock Streamlit in light theme */
-#   :root {
-#       background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-#       color: #111111;
-#       font-family: 'Segoe UI', sans-serif;
-#   }
-
-#   body, .stApp {
-#       color: var(--text-color) !important;
-#       background: var(--background-color) !important;
-#   }
-
-#   /* Results section text */
-#   div[data-testid="stMarkdownContainer"], 
-#   div[data-testid="stMetricValue"], 
-#   div[data-testid="stMetricDelta"] {
-#       color: #111111 !important;
-#       font-size: 1rem !important;
-#       font-weight: 600 !important;
-#   }
-
-#   /* Results box */
-#   .box {
-#       background: #f5f5f5;  /* light gray background for contrast */
-#       border: 1px solid #cccccc;
-#       border-radius: 16px;
-#       padding: 1rem 1.2rem;
-#       color: #111111 !important;
-#       font-weight: 600 !important;
-#   }
-# </style>
-# """, unsafe_allow_html=True)
-
-
+DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 96.5, 88.9, 53.9]
+DUCT_SPECS = {250: 237, 225: 213, 200: 188, 180: 169, 160: 150,
+              125: 118, 110: 102, 96.5: 89, 88.9: 82, 53.9: 50}
 
 # ----------------------------
-# Helpers
+# Helper functions
 # ----------------------------
 def compute_fill_factor(total_qty: int) -> float | None:
-    if total_qty <= 0:
-        return None
-    if total_qty == 1:
-        return 0.53  # 53%
-    if total_qty == 2:
-        return 0.31  # 31%
-    return 0.40      # 40% for 3+
+    if total_qty <= 0: return None
+    if total_qty == 1: return 0.53
+    if total_qty == 2: return 0.31
+    return 0.40
 
 def circle_area(d_mm: float) -> float:
-    """Area of a circle (mm²) from diameter in mm."""
     return math.pi * (d_mm / 2.0) ** 2
 
 def required_id_mm(total_cable_area_mm2: float, fill_factor: float) -> float:
-    """Required internal diameter (mm) given total cable area and fill factor."""
     required_area = total_cable_area_mm2 / fill_factor
     return 2.0 * math.sqrt(required_area / math.pi)
 
-def pick_recommended(size_needed: float, available_sizes: list[float]) -> float | None:
-    """Pick the smallest available size >= needed."""
-    for s in sorted(available_sizes):
-        if s >= size_needed:
-            return s
+def pick_recommended(required_id):
+    for od in sorted(DUCT_SIZES):
+        if DUCT_SPECS[od] >= required_id:
+            return od
     return None
+
+# ----------------------------
+# Load Cable Data
+# ----------------------------
+try:
+    df_cable_data = pd.read_excel("Cable_Data.xlsx")
+except:
+    df_cable_data = pd.DataFrame()
+    st.warning("Cable_Data.xlsx not found. 'Select from list' will not work.")
 
 # ----------------------------
 # UI
 # ----------------------------
 st.title("📏 Duct Size Calculator")
-st.caption("Applies NFPA 70 / NEC Chapter 9, Table 1 fill limits based on quantity of cables inside a duct.")
+st.caption("Type Cable OD manually or select from available cables.")
 
-with st.container():
-    st.markdown("<div class='box'>", unsafe_allow_html=True)
-    st.subheader("Cable List")
-    st.write("Add your cable types (OD in mm) and quantities. Rows are editable and you can add/remove as needed.")
+if "df" not in st.session_state:
+    st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 1.0, "Qty": 1, "Cable TYPE": "", "Cable Name": "", "Cable Size": ""}])
 
-    # Initialize editable table
-    if "df" not in st.session_state:
-        st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 1.0, "Qty": 1}])
+updated_rows = []
+for i, row in st.session_state.df.iterrows():
+    col1, col2, col3 = st.columns([2,2,1])
+    with col1:
+        od_option = st.radio(
+            f"Cable {i+1} OD Input",
+            ["Manual", "Select from list"],
+            key=f"od_option_{i}",
+            horizontal=True
+        )
 
-    updated_rows = []
-    for i, row in st.session_state.df.iterrows():
-        col1, col2, col3 = st.columns([2, 2, 1])
-
-        with col1:
-            od = st.text_input(
+        if od_option == "Manual":
+            od_val = st.text_input(
                 f"Cable {i+1} OD (mm)",
-                value=str(row["Cable OD (mm)"]),
+                value=str(row.get("Cable OD (mm)", 0)),
                 key=f"od_{i}"
             )
             try:
-                od_val = float(od)
+                od_val = float(od_val)
             except:
                 od_val = 0.0
+            type_sel = cable_sel = size_sel = ""
 
-        with col2:
-            qty = st.slider(
-                f"Cable {i+1} Qty",
-                min_value=1,
-                max_value=20,
-                value=int(row["Qty"]),
-                key=f"qty_{i}"
-            )
+        else:
+            if not df_cable_data.empty:
+                # Level 1 - TYPE
+                types_list = [""] + (df_cable_data["TYPE"].dropna().unique())
+                try:
+                    type_index = types_list.index(row.get("Cable TYPE", ""))
+                except:
+                    type_index = 0
+                type_sel = st.selectbox(f"Type (Cable {i+1})", options=types_list, index=type_index, key=f"type_{i}")
+                df_type = df_cable_data[df_cable_data["TYPE"] == type_sel] if type_sel else pd.DataFrame()
 
-        with col3:
-            if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
-                continue  # skip adding this row (deletes it)
+                # Level 2 - Cable
+                cable_list = [""] + (df_type["Cable"].dropna().unique()) if not df_type.empty else [""]
+                try:
+                    cable_index = cable_list.index(row.get("Cable Name", ""))
+                except:
+                    cable_index = 0
+                cable_sel = st.selectbox(f"Cable (Cable {i+1})", options=cable_list, index=cable_index, key=f"cable_{i}")
+                df_cable = df_type[df_type["Cable"] == cable_sel] if cable_sel else pd.DataFrame()
 
-        updated_rows.append({"Cable OD (mm)": od_val, "Qty": qty})
+                # Level 3 - Cable Size
+                size_list = [""] + (df_cable["Cable Size mm2"].dropna().unique()) if not df_cable.empty else [""]
+                try:
+                    size_index = size_list.index(row.get("Cable Size", ""))
+                except:
+                    size_index = 0
+                size_sel = st.selectbox(f"Size (Cable {i+1})", options=size_list, index=size_index, key=f"size_{i}")
+                df_final = df_cable[df_cable["Cable Size mm2"] == size_sel] if size_sel else pd.DataFrame()
 
-    # Update dataframe
-    st.session_state.df = pd.DataFrame(updated_rows)
+                # Get OD
+                od_val = df_final["Cable Outer Diameter mm"].values[0] if not df_final.empty else 0.0
+            else:
+                type_sel = cable_sel = size_sel = ""
+                od_val = 0.0
 
-    # Add new row button
-    if st.button("➕ Add Row", key="add_row_btn"):
-        df = st.session_state.df.copy()
-        df.loc[len(df)] = {"Cable OD (mm)": 0.0, "Qty": 1}
-        st.session_state.df = df
-        st.rerun()
+    with col2:
+        qty = st.slider(f"Qty {i+1}", 1, 20, int(row.get("Qty",1)), key=f"qty_{i}")
 
+    with col3:
+        if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
+            continue
 
+    updated_rows.append({
+        "Cable OD (mm)": od_val,
+        "Qty": qty,
+        "Cable TYPE": type_sel,
+        "Cable Name": cable_sel,
+        "Cable Size": size_sel
+    })
 
-    with st.expander("Advanced options"):
-        list_kind = st.radio(
-            "Your available duct list represents:",
-            ["Outer Diameter (OD)", "Inner Diameter (ID)"],
-            index=0,
-            horizontal=True
-        )
-        wall_thk = st.number_input(
-            "Assumed duct wall thickness (mm) (used only if list = OD)",
-            min_value=0.0, value=10.0, step=0.5
-        )
-        override_fill = st.checkbox("Override auto fill factor (%)")
-        custom_fill = st.slider("Fill factor (%)", 5, 90, 40) if override_fill else None
+st.session_state.df = pd.DataFrame(updated_rows)
 
-    cols = st.columns([1,1,1])
-    with cols[0]:
-        if st.button("🧹 Reset table"):
-            st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 0, "Qty": 1}])
+if st.button("➕ Add Row", key="add_row_btn"):
+    df = st.session_state.df.copy()
+    df.loc[len(df)] = {"Cable OD (mm)": 0, "Qty": 1, "Cable TYPE": "", "Cable Name": "", "Cable Size": ""}
+    st.session_state.df = df
+    st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+# ----------------------------
+# Fill factor override
+# ----------------------------
+override_fill = st.checkbox("Override auto fill factor (%)")
+custom_fill = st.slider("Fill factor (%)", 5, 90, 40) if override_fill else None
 
 # ----------------------------
 # Calculations
 # ----------------------------
 df = st.session_state.df.copy()
-# keep only valid rows
 df = df[(df["Cable OD (mm)"] > 0) & (df["Qty"] > 0)]
 
 total_qty = int(df["Qty"].sum()) if not df.empty else 0
-total_cable_area = float((circle_area(df["Cable OD (mm)"]) * df["Qty"]).sum()) if not df.empty else 0.0
+total_cable_area = float(
+    (circle_area(df["Cable OD (mm)"]) * df["Qty"]).sum()
+) if not df.empty else 0.0
 
-auto_fill = compute_fill_factor(total_qty)
-fill_factor = (custom_fill / 100.0) if override_fill and custom_fill else auto_fill
+fill_factor = (custom_fill / 100.0) if (override_fill and custom_fill) else compute_fill_factor(total_qty)
 
 st.markdown("<div class='box'>", unsafe_allow_html=True)
 st.subheader("Results")
@@ -176,85 +160,41 @@ mid.metric("Total cable area", f"{total_cable_area:,.2f} mm²")
 fill_display = f"{fill_factor*100:.0f}%" if fill_factor else "—"
 right.metric("Fill factor used", fill_display)
 
-st.markdown(
-    "<div class='small-note'>Per NFPA 70 / NEC Chapter 9, Table 1: "
-    "1 cable → 53%, 2 cables → 31%, 3+ cables → 40%. "
-    "You can override this in Advanced options.</div>",
-    unsafe_allow_html=True
-)
-
 if total_qty <= 0:
-    st.info("Add at least one cable row with a positive OD and quantity.")
+    st.info("Add at least one cable...")
 else:
-    if fill_factor is None or fill_factor <= 0:
-        st.error("Invalid fill factor. Please adjust in Advanced options.")
+    req_id = required_id_mm(total_cable_area, fill_factor)
+    recommended_od = pick_recommended(req_id)
+    actual_fill_pct = (
+        (total_cable_area / circle_area(DUCT_SPECS[recommended_od])) * 100.0
+        if recommended_od else None
+    )
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Required Internal Diameter", f"{req_id:.2f} mm")
+    # m2.metric("Required Outer Ø", "N/A")
+    m2.metric("Recommended Duct Size", f"{recommended_od if recommended_od else '—'} mm")
+
+    if recommended_od is None:
+        st.error("No suitable size found.")
     else:
-        # Required internal diameter
-        req_id = required_id_mm(total_cable_area, fill_factor)
+        st.success(
+            f"Recommended duct: **{recommended_od} mm** → "
+            f"ID = {DUCT_SPECS[recommended_od]} mm | "
+            f"Fill = {actual_fill_pct:.1f}%"
+        )
 
-        # If the list is OD, compute required OD; otherwise compare ID directly
-        if list_kind == "Outer Diameter (OD)":
-            req_od = req_id + 2.0 * wall_thk
-            needed_for_compare = req_od
-        else:
-            req_od = None
-            needed_for_compare = req_id
+    table = []
+    for od in sorted(DUCT_SIZES):
+        id_mm = DUCT_SPECS[od]
+        fill_pct = (total_cable_area / circle_area(id_mm)) * 100
+        table.append({
+            "Duct OD (mm)": od,
+            "Duct ID (mm)": id_mm,
+            "Fill (%)": round(fill_pct, 1)
+        })
 
-        # Pick recommended
-        recommended = pick_recommended(needed_for_compare, DUCT_SIZES)
-
-        # Compute actual fill if we use "recommended"
-        def internal_d_from_listed(listed_size):
-            if list_kind == "Outer Diameter (OD)":
-                return max(listed_size - 2.0 * wall_thk, 0.0)
-            return listed_size
-
-        actual_fill_pct = None
-        if recommended is not None:
-            internal_d = internal_d_from_listed(recommended)
-            if internal_d > 0:
-                actual_fill_pct = (total_cable_area / circle_area(internal_d)) * 100.0
-
-        # Show main metrics
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Required Internal Ø", f"{req_id:.2f} mm")
-        if req_od is not None:
-            m2.metric("Required Outer Ø", f"{req_od:.2f} mm")
-        else:
-            m2.metric("Required Ø (list is ID)", f"{req_id:.2f} mm")
-        if recommended is not None:
-            m3.metric("Recommended size", f"{recommended} mm")
-        else:
-            m3.metric("Recommended size", "—")
-
-        if recommended is None:
-            st.error("No suitable size found in the provided list.")
-        else:
-            st.success(
-                f"Recommended duct: **{recommended} mm** "
-                f"({list_kind}). "
-                + (f"Estimated actual fill: **{actual_fill_pct:.1f}%**." if actual_fill_pct is not None else "")
-            )
-
-        # Table of all available sizes & resulting fill
-        table = []
-        for s in sorted(DUCT_SIZES):
-            id_mm = internal_d_from_listed(s)
-            area_mm2 = circle_area(id_mm) if id_mm > 0 else float('nan')
-            fill_pct = (total_cable_area / area_mm2 * 100.0) if area_mm2 and area_mm2 > 0 else float('nan')
-            table.append({
-                "Listed size (mm)": s,
-                "Used as": list_kind,
-                "Assumed ID (mm)": round(id_mm, 2),
-                "Fill (%)": round(fill_pct, 1) if not math.isnan(fill_pct) else None
-            })
-        st.write("### Available sizes overview")
-        st.dataframe(pd.DataFrame(table), use_container_width=True)
+    st.write("### Available sizes overview (Fixed OD → ID)")
+    st.dataframe(pd.DataFrame(table), use_container_width=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown(
-    "<div class='small-note'>Note: Advanced Options If your catalog sizes are nominal Inner Diameter rather than Outer Diameter, switch the "
-    "radio to `Inner Diameter (ID)`. If OD is used, adjust wall thickness to match your duct material/spec.</div>",
-    unsafe_allow_html=True
-)
