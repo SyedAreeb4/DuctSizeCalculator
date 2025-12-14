@@ -12,7 +12,6 @@ DUCT_SPECS = {250: 237, 225: 213, 200: 188, 180: 169, 160: 150,
               125: 118, 110: 102, 96.5: 89, 88.9: 82, 53.9: 50}
 
 # ----------------------------
-# Helper functions
 # ----------------------------
 def compute_fill_factor(total_qty: int) -> float | None:
     if total_qty <= 0: return None
@@ -36,8 +35,13 @@ def pick_recommended(required_id):
 # ----------------------------
 # Load Cable Data
 # ----------------------------
+
+# from datasets import load_dataset
+# dataset = load_dataset("csv", data_files="Cable/Cable_Data.csv")
+# df_cable_data = dataset
+
 try:
-    df_cable_data = pd.read_excel("Cable_Data.xlsx")
+    df_cable_data = pd.read_csv("hf://datasets/Areeb41/Cable/Cable_Data.csv")
 except:
     df_cable_data = pd.DataFrame()
     st.warning("Cable_Data.xlsx not found. 'Select from list' will not work.")
