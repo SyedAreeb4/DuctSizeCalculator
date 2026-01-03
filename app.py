@@ -7,11 +7,12 @@ import math
 # ----------------------------
 st.set_page_config(page_title="Duct Size Calculator", page_icon="📏", layout="centered")
 
-DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 96.5, 88.9, 53.9]
+DUCT_SIZES = [250, 225, 200, 180, 160, 125, 110, 88.9, 53.9]
 DUCT_SPECS = {250: 237, 225: 213, 200: 188, 180: 169, 160: 150,
-              125: 118, 110: 102, 96.5: 89, 88.9: 82, 53.9: 50}
+              125: 118, 110: 102 , 88.9: 82, 53.9: 50}
 
 # ----------------------------
+# Helper functions
 # ----------------------------
 def compute_fill_factor(total_qty: int) -> float | None:
     if total_qty <= 0: return None
@@ -35,25 +36,24 @@ def pick_recommended(required_id):
 # ----------------------------
 # Load Cable Data
 # ----------------------------
-
-# from datasets import load_dataset
-# dataset = load_dataset("csv", data_files="Cable/Cable_Data.csv")
-# df_cable_data = dataset
-
 try:
     df_cable_data = pd.read_csv("hf://datasets/Areeb41/Cable/Cable_Data.csv")
 except:
     df_cable_data = pd.DataFrame()
-    st.warning("Cable_Data.xlsx not found. 'Select from list' will not work.")
+    st.warning("Cable_Data not found. 'Select from list' will not work.")
 
 # ----------------------------
 # UI
 # ----------------------------
-st.title("📏 Duct Size Calculator")
+st.title("Duct Size Calculator")
 st.caption("Type Cable OD manually or select from available cables.")
 
 if "df" not in st.session_state:
     st.session_state.df = pd.DataFrame([{"Cable OD (mm)": 1.0, "Qty": 1, "Cable TYPE": "", "Cable Name": "", "Cable Size": ""}])
+
+if "delete_index" not in st.session_state:
+    st.session_state.delete_index = None
+
 
 updated_rows = []
 for i, row in st.session_state.df.iterrows():
@@ -113,12 +113,31 @@ for i, row in st.session_state.df.iterrows():
                 type_sel = cable_sel = size_sel = ""
                 od_val = 0.0
 
+    # with col2:
+    #     qty = st.slider(f"Qty {i+1}", 1, 20, int(row.get("Qty",1)), key=f"qty_{i}")
+        
     with col2:
-        qty = st.slider(f"Qty {i+1}", 1, 20, int(row.get("Qty",1)), key=f"qty_{i}")
+        qty_str = st.text_input(
+            f"Qty {i+1}",
+            value=str(int(row.get("Qty", 1))),
+            key=f"qty_{i}"
+        )
 
-    with col3:
-        if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
-            continue
+        try:
+            qty = int(qty_str)
+            if qty < 1:
+                qty = 1
+        except ValueError:
+            st.error("Please enter a valid integer")
+            qty = 1    
+
+    # with col3:
+    #     # if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
+    #     #     continue
+    #     if st.button(f"❌ Delete {i+1}", key=f"del_{i}"):
+    #         st.session_state.df = st.session_state.df.drop(index=i).reset_index(drop=True)
+    #         st.rerun()
+
 
     updated_rows.append({
         "Cable OD (mm)": od_val,
@@ -128,7 +147,15 @@ for i, row in st.session_state.df.iterrows():
         "Cable Size": size_sel
     })
 
-st.session_state.df = pd.DataFrame(updated_rows)
+# st.session_state.df = pd.DataFrame(updated_rows)
+
+DF_COLUMNS = ["Cable OD (mm)", "Qty", "Cable TYPE", "Cable Name", "Cable Size"]
+st.session_state.df = pd.DataFrame(updated_rows, columns=DF_COLUMNS)
+
+if not st.session_state.df.empty:
+    if st.button(f"❌ Delete row"):
+        st.session_state.df = st.session_state.df.iloc[:-1].reset_index(drop=True)
+        st.rerun()
 
 if st.button("➕ Add Row", key="add_row_btn"):
     df = st.session_state.df.copy()
@@ -145,8 +172,20 @@ custom_fill = st.slider("Fill factor (%)", 5, 90, 40) if override_fill else None
 # ----------------------------
 # Calculations
 # ----------------------------
+# df = st.session_state.df.copy()
+# df = df[(df["Cable OD (mm)"] > 0) & (df["Qty"] > 0)]
+
 df = st.session_state.df.copy()
-df = df[(df["Cable OD (mm)"] > 0) & (df["Qty"] > 0)]
+
+required_cols = {"Cable OD (mm)", "Qty"}
+if not required_cols.issubset(df.columns):
+    df = pd.DataFrame(columns=["Cable OD (mm)", "Qty"])
+else:
+    df = df[(df["Cable OD (mm)"] > 0) & (df["Qty"] > 0)]
+
+
+
+
 
 total_qty = int(df["Qty"].sum()) if not df.empty else 0
 total_cable_area = float(
@@ -177,10 +216,10 @@ else:
     m1, m2, m3 = st.columns(3)
     m1.metric("Required Internal Diameter", f"{req_id:.2f} mm")
     # m2.metric("Required Outer Ø", "N/A")
-    m2.metric("Recommended Duct Size", f"{recommended_od if recommended_od else '—'} mm")
+    m2.metric("Recommended Duct Size", f"{recommended_od} mm" if recommended_od else "Not Available")
 
     if recommended_od is None:
-        st.error("No suitable size found.")
+        st.error("Duct Size not available")
     else:
         st.success(
             f"Recommended duct: **{recommended_od} mm** → "
@@ -198,7 +237,7 @@ else:
             "Fill (%)": round(fill_pct, 1)
         })
 
-    st.write("### Available sizes overview (Fixed OD → ID)")
+    st.write("### Available Ducts Overview")
     st.dataframe(pd.DataFrame(table), use_container_width=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
